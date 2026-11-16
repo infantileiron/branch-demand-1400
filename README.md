@@ -46,13 +46,25 @@ docker compose exec -T backend python -m scripts.seed_demo
 
 回测预测先截负为0；未来预测同样截断，再用floor(raw+0.5)四舍五入成非负整数，保留raw及clipped标记。最后用全部历史拟合两个未来7日序列。结果保存冻结记录、参数、checksum、回测逐日明细与两组未来预测。排班人数=`ceil(预测单量/单人日容量)`；容量需1–1000，由业务输入。不处理技能、休息、缺勤、轮班组合优化；不自动替代现场排班决定。
 
+## 中断恢复、逐日校验与并发围栏
+
+预测提交即冻结日量快照与参数，中断恢复与修复都复用同一 `ForecastRun`，永不另建预测。
+
+- **接单围栏（fencing）**：计算进程接单时用条件更新 `queued→running` 并写入一次性 `run_token`；多个 worker 并发或队列重复投递时只有一个条件更新命中。写回结果要求 token 与状态同时匹配，旧进程迟到（恢复后已被新进程取代）的写回/失败上报一律拒绝，已确认预测不会被覆盖。`attempts` 记录真实接单次数。
+- **中断点恢复**：worker 启动把 `queued/running` 的同一 run id 重新入队。接单后崩溃（停留 running）、文件写完但未写库、写库后才崩溃三类中断均安全：结果文件先写临时文件并 fsync 再原子 rename，再做条件完成更新，因此不会出现“完成状态已置但文件缺失”；反过来文件先在而状态未完成时，恢复后按冻结快照确定性重算（同输入 checksum 恒定）并重新核对。
+- **逐日校验与入口门控**：`verification` 独立于计算状态（none/pending/verified/corrupt）。完成后逐日核对结果文件与库内保存值：冻结 checksum、回测逐日、两种模型未来7日的 day/raw/prediction/clipped、指标与选模。仅 `done + verified` 开放导出与排班起草；文件缺失、半写损坏或逐日不符时标记 corrupt 并暂停这两个入口，页面展示恢复与校验状态及不符明细。后端启动与查看详情时都会重核对。
+- **修复原预测**：`POST /runs/{id}/repair`（analyst/admin）。未完成的预测重置为 queued 按原 id 重算；已完成的优先用库内冻结保存值重写文件，若重算值与已确认保存值 checksum/回测/未来不一致则拒绝覆盖（同号异内容保护）并保留现场。修复不产生新版本。
+- **排班幂等**：排班请求携带客户端生成的 `request_key`（UUID，重试原样重发），库内唯一约束。同号同内容重试返回原排班、不重复创建；同号异内容（版本/容量/模型/说明不同）返回 409 拒绝。排班的人数与依据在创建时固化进 `schedule`，原预测后续修复不改变任何已有排班。
+
+验证覆盖：接单后中断、文件写完后中断、双进程并发争抢（含真实双 OS 进程）、迟到旧进程写回、文件缺失/截断/逐日篡改/checksum 篡改、损坏门控与修复闭环、排班重试幂等与同号异内容拒绝、修复后已有排班不变，见 `backend/tests`。
+
 ## 工程结构与环境
 
 |部分|技术|
 |---|---|
 |后端/计算|Python3.11、FastAPI、SQLAlchemy；纯Python确定性Holt/季节法|
 |前端|原生HTML/CSS/ES modules、SVG真实回测曲线|
-|运行|Nginx1.27、PostgreSQL16、Redis7、单Python worker|
+|运行|Nginx1.27、PostgreSQL16、Redis7、Python worker 可多副本（`docker compose up -d --scale worker=2`）|
 
 `frontend/src`按api、stores、types、components/common、hooks、pages、router、utils、constants分工；backend/src按routes、controllers、services、models、schemas、middlewares、utils、constants、config分工。表格/字段/状态标签在多页共用；表单hooks和HTML转义工具分离。请求ID、安全响应头两个中间件，写操作审计、全局异常恢复提示。JWT默认有效8小时。
 
@@ -64,6 +76,6 @@ docker compose exec -T backend python -m scripts.seed_demo
 
 ## 范围与证据
 
-小型演示为逐条录入/修订，无CSV批量上传、删除、分页、自动超参搜索或外部排班发布。无置信区间或节假日外生变量；单worker，不宣称多worker exactly-once。时间序列按业务日，不涉及小时时区换算。字体依赖Google Fonts，断网回退serif/sans-serif。
+小型演示为逐条录入/修订，无CSV批量上传、删除、分页、自动超参搜索或外部排班发布。无置信区间或节假日外生变量。时间序列按业务日，不涉及小时时区换算。字体依赖Google Fonts，断网回退serif/sans-serif。多 worker 通过数据库条件更新与 run_token 围栏保证同一预测只被处理一次、迟到写回不覆盖（at-least-once 投递 + 幂等接单），但不依赖 Redis 流/消息代理的 exactly-once 语义。
 
 真实测试、截图和已知差异放在 `../../test-artifacts/gb-3109/`，源码不放证据。测试包含算法已知值、零MAPE、缺日拒绝、无未来泄漏、种子幂等、三角色与浏览器完整流程。许可证MIT，见LICENSE。

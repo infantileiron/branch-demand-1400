@@ -46,7 +46,8 @@ services:
       retries: 25
   worker:
     <<: *app
-    container_name: ${COMPOSE_PROJECT_NAME:-branch-demand}-worker
+    # 不固定 container_name 以便水平扩缩：docker compose up -d --scale worker=2
+    # 多副本并发接单由数据库条件更新（run_token 围栏）去重，重复投递/迟到进程均不改写已确认预测
     command: [python, -m, src.worker]
     depends_on:
       db: {condition: service_healthy}

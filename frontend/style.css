@@ -5,3 +5,17 @@
 .split>*{min-width:0}.scroll{max-width:100%}header{gap:16px;flex-wrap:wrap}header>div{min-width:0;max-width:100%;overflow-wrap:anywhere}@media(max-width:1000px){.split{grid-template-columns:minmax(0,1fr)}}@media(max-width:767px){header .brand{width:100%}.intro h1{font-size:30px}nav{max-width:100%}nav button{flex-shrink:0}}
 
 nav{background:oklch(30% .04 155);color:oklch(94% .02 105)}nav button{color:inherit}nav .active{background:oklch(43% .05 155);border-color:oklch(75% .13 75)}nav .eyebrow{color:oklch(77% .03 105)}.login .cover{background:oklch(30% .04 155)}.compare{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:28px}.result-head{display:flex;justify-content:space-between;gap:15px}.compare>*{min-width:0}.metrics strong{font-size:clamp(22px,2vw,30px)}.metrics p{font-size:12px}.metrics{justify-content:space-between}@media(max-width:900px){.compare{grid-template-columns:minmax(0,1fr)}}
+
+/* 恢复与校验状态徽标 */
+.tag-v-none{border-color:oklch(70% .02 75);color:oklch(55% .03 75)}
+.tag-v-pending{border-color:oklch(65% .12 80);color:oklch(50% .14 75);background:oklch(95% .06 85)}
+.tag-v-verified{border-color:oklch(55% .13 150);color:oklch(42% .13 150);background:oklch(94% .05 150)}
+.tag-v-corrupt{border-color:oklch(55% .18 25);color:oklch(48% .19 25);background:oklch(95% .07 28)}
+.tag-state-running{border-color:oklch(55% .13 230);color:oklch(45% .15 235)}
+.tag-state-done{border-color:oklch(55% .13 150);color:oklch(42% .13 150)}
+.tag-state-failed{border-color:oklch(55% .18 25);color:oklch(48% .19 25)}
+.recovery-box{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 16px;margin:14px 0;border:1px solid var(--line);border-left-width:4px}
+.recovery-box.verified{border-left-color:oklch(55% .13 150);background:oklch(96% .03 150)}
+.recovery-box.corrupt{border-left-color:oklch(55% .18 25);background:oklch(96% .04 28)}
+.recovery-box.pending{border-left-color:oklch(65% .12 80);background:oklch(96% .05 85)}
+.recovery-box .detail{font-size:12px;color:var(--muted);width:100%;line-height:1.7}
